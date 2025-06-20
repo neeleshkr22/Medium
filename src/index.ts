@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
-import { PrismaClient } from '@prisma/client/edge'
-import { withAccelerate } from '@prisma/extension-accelerate'
+
 import { decode, sign, verify } from 'hono/jwt'
+import { userRouter } from './routes/user'
+import { blogRouter } from './routes/blog'
 
 const app = new Hono<{
   Bindings: {
@@ -32,73 +33,13 @@ app.use('/api/vi/blog/*', async (c, next) => {
   await next();
 })
 
-app.post('/api/v1/signup', async (c) => {
-  const prisma = new PrismaClient({
-    datasourceUrl: c.env?.DATABASE_URL,
-  }).$extends(withAccelerate());
+app.route("/api/v1/user",userRouter);
+app.route("/api/v1/blog", blogRouter);
 
-  const body = await c.req.json();
 
-  try {
-    const user = await prisma.user.create({
-      data: {
-        email: body.email,
-        password: body.password,
-        name: body.name,
-      },
-    })
-    const token = sign({ userId: user.id }, c.env.JWT_SECRET);
-    return c.json({
-      jwt: token,
-    })
-  } catch (error) {
-    c.status(403);
-    return c.json({
-      error: 'error while creating user',
-    })
-  }
-})
 
-app.post('/api/v1/signin', async (c) => {
-  const prisma = new PrismaClient({
-    datasourceUrl: c.env?.DATABASE_URL,
-  }).$extends(withAccelerate());
-  try {
-    const body = await c.req.json();
-    const user = await prisma.user.findUnique({
-      where: {
-        email: body.email,
-      },
-    });
-    if (!user) {
-      c.status(404);
-      return c.json({
-        error: 'Incorrect credentials',
-      });
-    }
-    const jwt = await sign({ id: user.id }, c.env.JWT_SECRET);
-    return c.json({
-      jwt,
-    });
-  } catch (e) {
-    c.status(403);
-    return c.json({
-      error: 'error while signing in',
-    })
-  }
-})
 
-app.post('/api/v1/blog', (c) => {
-  return c.text('Blog endpoint')
-})
 
-app.put('/api/v1/blog/:id', (c) => {
-  return c.text(`Update blog with ID: ${c.req.param('id')}`)
-})
-
-app.get('/api/v1/blog/:id', (c) => {
-  return c.text(`Get blog with ID: ${c.req.param('id')}`)
-})
 
 app.get('/', (c) => {
   return c.text('Hello Hono!')
